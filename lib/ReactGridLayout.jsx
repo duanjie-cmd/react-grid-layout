@@ -14,11 +14,12 @@ import {
   getLayoutItem,
   moveElement,
   noop,
+  right,
   synchronizeLayoutWithChildren,
-  withLayoutItem
+  withLayoutItem,
 } from "./utils";
 
-import { calcXY } from "./calculateUtils";
+import { calcGridColWidth, calcXY } from "./calculateUtils";
 
 import GridItem from "./GridItem";
 import ReactGridLayoutPropTypes from "./ReactGridLayoutPropTypes";
@@ -69,10 +70,27 @@ try {
   /* Ignore */
 }
 
+// todo 单次拓展的宽高限制，后续通过 props 传递,容器初始宽高，必须是此参数的倍数，不然会有bug（比如: 初始宽度是500，这里设置300，2倍会出现宽度为600px的情况）,暂不处理
+export const onceExpand: {
+  width: number,
+  height: number
+} = {
+  width: 150,
+  height: 200,
+}
+
+// todo 容器的初始宽度 800，容器的初始高度 1200，后续通过 props 传递
+export const initContainer: {
+  width: number,
+  height: number
+} = {
+  width: 300,
+  height: 400,
+}
+
 /**
  * A reactive, fluid grid layout with draggable, resizable components.
  */
-
 export default class ReactGridLayout extends React.Component<Props, State> {
   // TODO publish internal ReactClass displayName transform
   static displayName: ?string = "ReactGridLayout";
@@ -139,7 +157,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   };
 
   dragEnterCounter: number = 0;
-
+  slefBottomMaxHeight: number = 0;
+  slefRightMaxWidth: number = 0;
+  
   componentDidMount() {
     this.setState({ mounted: true });
     // Possibly call back with layout on mount. This should be done after correcting the layout width
@@ -220,7 +240,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
    * Calculates a pixel value for the container.
    * @return {String} Container height in pixels.
    */
-  containerHeight(): ?string {
+  containerHeight(): ?number {
     if (!this.props.autoSize) return;
     const nbRow = bottom(this.state.layout);
     const containerPaddingY = this.props.containerPadding
@@ -229,8 +249,41 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     return (
       nbRow * this.props.rowHeight +
       (nbRow - 1) * this.props.margin[1] +
-      containerPaddingY * 2 +
-      "px"
+      containerPaddingY * 2
+    );
+  }
+
+  /**
+   * Calculates a pixel value for the container.
+   * @return {String} Container height in pixels.
+   */
+  containerWidth(): ?number {
+    if (!this.props.autoSize) return;
+    const nbColumn= right(this.state.layout);
+    const containerPaddingX = this.props.containerPadding
+      ? this.props.containerPadding[0]
+      : this.props.margin[0];
+    const {
+      margin,
+      cols,
+      rowHeight,
+      maxRows,
+      width,
+      containerPadding,
+    } = this.props;
+    const positionParams: PositionParams = {
+      cols,
+      margin,
+      maxRows,
+      rowHeight,
+      containerWidth: width,
+      containerPadding: containerPadding || margin
+    };
+    const colWidth = calcGridColWidth(positionParams);
+    return (
+      nbColumn * colWidth+
+      (nbColumn - 1) * this.props.margin[0] +
+      containerPaddingX * 2
     );
   }
 
@@ -283,12 +336,16 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     i,
     x,
     y,
-    { e, node }
+    { e, node,bottomMaxHeight,rightMaxWidth }
   ) => {
     const { oldDragItem } = this.state;
     let { layout } = this.state;
     const { cols, allowOverlap, preventCollision } = this.props;
+    // const { cols, preventCollision } = this.props;
+    // const allowOverlap = true;
     const l = getLayoutItem(layout, i);
+    this.slefBottomMaxHeight = bottomMaxHeight || 0;
+    this.slefRightMaxWidth = rightMaxWidth || 0;
     if (!l) return;
 
     // Create placeholder (display only)
@@ -303,6 +360,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     // Move the element to the dragged location.
     const isUserAction = true;
+    // TODO dj，这里没看懂，这里有碰撞检测，移动相关元素的逻辑
     layout = moveElement(
       layout,
       l,
@@ -320,7 +378,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     this.setState({
       layout: allowOverlap
         ? layout
-        : compact(layout, compactType(this.props), cols),
+        : compact(layout, compactType(this.props), cols), // TODO dj
       activeDrag: placeholder
     });
   };
@@ -340,7 +398,6 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     { e, node }
   ) => {
     if (!this.state.activeDrag) return;
-
     const { oldDragItem } = this.state;
     let { layout } = this.state;
     const { cols, preventCollision, allowOverlap } = this.props;
@@ -644,9 +701,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
         cancel={draggableCancel}
         handle={draggableHandle}
         onDragStop={this.onDragStop}
-        onDragStart={this.onDragStart}
-        onDrag={this.onDrag}
-        onResizeStart={this.onResizeStart}
+        onDragStart={this.onDragStart} // 拖拽开始，创建 placeholder，设置 oldDragItem，oldLayout，activeDrag
+        onDrag={this.onDrag} // 拖拽过程中
+        onResizeStart={this.onResizeStart} 
         onResize={this.onResize}
         onResizeStop={this.onResizeStop}
         isDraggable={draggable}
@@ -677,6 +734,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   // Called while dragging an element. Part of browser native drag/drop API.
   // Native event target might be the layout itself, or an element within the layout.
   onDragOver: DragOverEvent => void | false = e => {
+    console.log("ReactGridLayout:" ,"onDragOver");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
 
@@ -768,6 +826,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     }
   };
 
+  // 清除droppingDOMNode，清除activeDrag，清除 layout 中 droppingItem
   removeDroppingPlaceholder: () => void = () => {
     const { droppingItem, cols } = this.props;
     const { layout } = this.state;
@@ -779,6 +838,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       this.props.allowOverlap
     );
 
+    // console.log("ReactGridLayout:" ,"removeDroppingPlaceholder",newLayout);
     this.setState({
       layout: newLayout,
       droppingDOMNode: null,
@@ -786,8 +846,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       droppingPosition: undefined
     });
   };
-
+  
   onDragLeave: EventHandler = e => {
+    console.log("ReactGridLayout:" ,"onDragLeave");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
     this.dragEnterCounter--;
@@ -803,12 +864,14 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   };
 
   onDragEnter: EventHandler = e => {
+    console.log("ReactGridLayout:" ,"onDragEnter");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
     this.dragEnterCounter++;
   };
 
   onDrop: EventHandler = (e: Event) => {
+    console.log("ReactGridLayout:" ,"onDrop");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
     const { droppingItem } = this.props;
@@ -825,29 +888,37 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
   render(): React.Element<"div"> {
     const { className, style, isDroppable, innerRef } = this.props;
+    // console.log("ReactGridLayout render props:", this.props);
 
     const mergedClassName = clsx(layoutClassName, className);
+    const containerWidth = Math.max(initContainer.width, Math.ceil(this.slefRightMaxWidth / onceExpand.width) * onceExpand.width);
+    const containerHeight = Math.max(initContainer.height, Math.ceil(this.slefBottomMaxHeight / onceExpand.height) * onceExpand.height);
+
     const mergedStyle = {
-      height: this.containerHeight(),
+      minWidth: containerWidth,
+      height: containerHeight,
       ...style
     };
+
+    // console.log('render:',mergedStyle)
 
     return (
       <div
         ref={innerRef}
         className={mergedClassName}
-        style={mergedStyle}
-        onDrop={isDroppable ? this.onDrop : noop}
-        onDragLeave={isDroppable ? this.onDragLeave : noop}
-        onDragEnter={isDroppable ? this.onDragEnter : noop}
-        onDragOver={isDroppable ? this.onDragOver : noop}
+        style = { mergedStyle }
+        // 处理元素拖拽到容器内的事件, 进入、在上方、离开、释放事件
+        onDrop={isDroppable ? this.onDrop : noop} // 放置目标上释放被拖动的元素，松开鼠标，清除 removeDroppingPlaceholder，还原 this.dragEnterCounter，执行 props 中的 onDrop 函数
+        onDragEnter={isDroppable ? this.onDragEnter : noop} // 拖拽元素进入，this.dragEnterCounter++;
+        onDragOver={isDroppable ? this.onDragOver : noop} // 拖拽元素在上方，执行 props 中的 onDropDragOver 函数，添加 droppingDOMNode，计算 droppingPosition，在 layout 中添加数据
+        onDragLeave={isDroppable ? this.onDragLeave : noop}  // 拖拽元素离开， 通过 this.dragEnterCounter 判断是否清除 removeDroppingPlaceholder
       >
         {React.Children.map(this.props.children, child =>
           this.processGridItem(child)
         )}
-        {isDroppable &&
-          this.state.droppingDOMNode &&
-          this.processGridItem(this.state.droppingDOMNode, true)}
+        {/* 外部元素拖拽的色块背景色，渲染 droppingDOMNode */}
+        {isDroppable && this.state.droppingDOMNode && this.processGridItem(this.state.droppingDOMNode, true)} 
+        {/* 内部元素拖拽过程中，拖拽的色块背景色，渲染 activeDrag */ }
         {this.placeholder()}
       </div>
     );
