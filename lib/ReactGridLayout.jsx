@@ -42,6 +42,10 @@ import type {
 import type { PositionParams } from "./calculateUtils";
 
 type State = {
+  base: {
+    x: number,
+    y: number,
+  },
   activeDrag: ?LayoutItem,
   layout: Layout,
   mounted: boolean,
@@ -75,8 +79,8 @@ export const onceExpand: {
   width: number,
   height: number
 } = {
-  width: 150,
-  height: 200,
+  width: 200,
+  height: 100,
 }
 
 // todo 容器的初始宽度 800，容器的初始高度 1200，后续通过 props 传递
@@ -84,8 +88,8 @@ export const initContainer: {
   width: number,
   height: number
 } = {
-  width: 300,
-  height: 400,
+  width: 200,
+  height: 300,
 }
 
 /**
@@ -138,6 +142,10 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   };
 
   state: State = {
+    base: {
+      x: 0,
+      y: 0,
+    },
     activeDrag: null,
     layout: synchronizeLayoutWithChildren(
       this.props.layout,
@@ -246,6 +254,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const containerPaddingY = this.props.containerPadding
       ? this.props.containerPadding[1]
       : this.props.margin[1];
+    console.log('nbRow:',nbRow);
     return (
       nbRow * this.props.rowHeight +
       (nbRow - 1) * this.props.margin[1] +
@@ -317,7 +326,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     this.setState({
       oldDragItem: cloneLayoutItem(l),
-      oldLayout: layout,
+      oldLayout: layout, // todo 写法优化，这里需要深拷贝，使用lodash,JSON.parse(JSON.stringify(layout))
       activeDrag: placeholder
     });
 
@@ -397,6 +406,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     y,
     { e, node }
   ) => {
+    // console.log('onDragStop');
     if (!this.state.activeDrag) return;
     const { oldDragItem } = this.state;
     let { layout } = this.state;
@@ -602,7 +612,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
    * @return {Element} Placeholder div.
    */
   placeholder(): ?ReactElement<any> {
-    const { activeDrag } = this.state;
+    const { activeDrag,base } = this.state;
     if (!activeDrag) return null;
     const {
       width,
@@ -618,6 +628,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     // {...this.state.activeDrag} is pretty slow, actually
     return (
       <GridItem
+        base={base}
         w={activeDrag.w}
         h={activeDrag.h}
         x={activeDrag.x}
@@ -641,6 +652,39 @@ export default class ReactGridLayout extends React.Component<Props, State> {
         <div />
       </GridItem>
     );
+  }
+
+  onUpdateBase: (base: { x: number, y: number }) => void = (base) => {
+    // if (base.x !== this.state.base.x || base.y !== this.state.base.y) {
+    //   console.log('onUpdateBase', base);
+    //   this.setState({
+    //     base
+    //   });
+    // }
+    const { rowHeight, margin } = this.props;
+    const addY = onceExpand.height / (rowHeight + margin[0]);
+    // let tempActiveDrag = null;
+    // if (this.state.activeDrag) {   
+    //   tempActiveDrag = cloneLayoutItem(this.state.activeDrag);
+    //   tempActiveDrag.y = tempActiveDrag.y + addY
+    // }
+    this.setState({
+      layout: this.state.layout.map(item => {
+        item.y = item.y + addY
+        return item
+      }),
+      // activeDrag: tempActiveDrag
+    });
+
+    // window.setTimeout(() => {
+    //   debugger;
+    //  },0)
+
+    const containerDom = document.querySelector('.react-grid-layout');
+    if(containerDom) {
+      const top = Number(window.getComputedStyle(containerDom).top.replace('px',''));
+      containerDom.style.top = top - onceExpand.height + 'px';
+    }
   }
 
   /**
@@ -670,9 +714,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       draggableCancel,
       draggableHandle,
       resizeHandles,
-      resizeHandle
+      resizeHandle,
     } = this.props;
-    const { mounted, droppingPosition } = this.state;
+    const { mounted, droppingPosition, base } = this.state;
 
     // Determine user manipulations possible.
     // If an item is static, it can't be manipulated by default.
@@ -692,6 +736,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     return (
       <GridItem
+        base={base}
         containerWidth={width}
         cols={cols}
         margin={margin}
@@ -706,6 +751,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
         onResizeStart={this.onResizeStart} 
         onResize={this.onResize}
         onResizeStop={this.onResizeStop}
+        onUpdateBase={this.onUpdateBase}
         isDraggable={draggable}
         isResizable={resizable}
         isBounded={bounded}
@@ -891,12 +937,12 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     // console.log("ReactGridLayout render props:", this.props);
 
     const mergedClassName = clsx(layoutClassName, className);
-    const containerWidth = Math.max(initContainer.width, Math.ceil(this.slefRightMaxWidth / onceExpand.width) * onceExpand.width);
-    const containerHeight = Math.max(initContainer.height, Math.ceil(this.slefBottomMaxHeight / onceExpand.height) * onceExpand.height);
+    const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0 ) / onceExpand.width) * onceExpand.width);
+    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0 ) / onceExpand.height) * onceExpand.height);
 
     const mergedStyle = {
-      minWidth: containerWidth,
-      height: containerHeight,
+      minWidth: containerWidth + this.state.base.x,
+      height: containerHeight + this.state.base.y,
       ...style
     };
 
