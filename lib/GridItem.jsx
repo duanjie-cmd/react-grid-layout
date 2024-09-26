@@ -36,7 +36,6 @@ import type {
 
 import type { PositionParams } from "./calculateUtils";
 import type { ResizeHandle, ReactRef } from "./ReactGridLayoutPropTypes";
-import { onceExpand } from "./ReactGridLayout";
 
 type PartialPosition = { top: number, left: number };
 type GridItemCallback<Data: GridDragEvent | GridResizeEvent> = (
@@ -65,7 +64,6 @@ type State = {
 };
 
 type Props = {
-  base: { x: number, y: number },
   children: ReactElement<any>,
   cols: number,
   containerWidth: number,
@@ -107,8 +105,7 @@ type Props = {
   onDragStop?: GridItemCallback<GridDragEvent>,
   onResize?: GridItemCallback<GridResizeEvent>,
   onResizeStart?: GridItemCallback<GridResizeEvent>,
-  onResizeStop?: GridItemCallback<GridResizeEvent>,
-  onUpdateBase?: (base: { x: number, y: number }) => void
+  onResizeStop?: GridItemCallback<GridResizeEvent>
 };
 
 type DefaultProps = {
@@ -127,10 +124,6 @@ type DefaultProps = {
  */
 export default class GridItem extends React.Component<Props, State> {
   static propTypes = {
-    base: PropTypes.shape({
-      x: PropTypes.number.isRequired,
-      y: PropTypes.number.isRequired,
-    }),
     // Children must be only a single element
     children: PropTypes.element,
 
@@ -191,7 +184,6 @@ export default class GridItem extends React.Component<Props, State> {
     onResizeStop: PropTypes.func,
     onResizeStart: PropTypes.func,
     onResize: PropTypes.func,
-    onUpdateBase: PropTypes.func,
 
     // Flags
     isDraggable: PropTypes.bool.isRequired,
@@ -244,7 +236,6 @@ export default class GridItem extends React.Component<Props, State> {
     // TODO memoize these calculations so they don't take so long?
     const oldPosition = calcGridItemPosition(
       this.getPositionParams(this.props),
-      this.props.base,
       this.props.x,
       this.props.y,
       this.props.w,
@@ -253,7 +244,6 @@ export default class GridItem extends React.Component<Props, State> {
     );
     const newPosition = calcGridItemPosition(
       this.getPositionParams(nextProps),
-      nextProps.base,
       nextProps.x,
       nextProps.y,
       nextProps.w,
@@ -409,17 +399,16 @@ export default class GridItem extends React.Component<Props, State> {
       maxH,
       transformScale,
       resizeHandles,
-      resizeHandle,
-      base
+      resizeHandle
     } = this.props;
     const positionParams = this.getPositionParams();
 
     // This is the max possible width - doesn't go to infinity because of the width of the window
-    const maxWidth = calcGridItemPosition(positionParams,base, 0, 0, cols, 0).width;
+    const maxWidth = calcGridItemPosition(positionParams, 0, 0, cols, 0).width;
 
     // Calculate min/max constraints using our min & maxes
-    const mins = calcGridItemPosition(positionParams, base,0, 0, minW, minH);
-    const maxes = calcGridItemPosition(positionParams,base, 0, 0, maxW, maxH);
+    const mins = calcGridItemPosition(positionParams, 0, 0, minW, minH);
+    const maxes = calcGridItemPosition(positionParams, 0, 0, maxW, maxH);
     const minConstraints = [mins.width, mins.height];
     const maxConstraints = [
       Math.min(maxes.width, maxWidth),
@@ -447,9 +436,6 @@ export default class GridItem extends React.Component<Props, State> {
       </Resizable>
     );
   }
-
-  offsetParentClientHeight: number;
-  offsetParentClientWidth: number;
 
   /**
    * onDragStart event handler
@@ -483,17 +469,12 @@ export default class GridItem extends React.Component<Props, State> {
       this.props.w,
       this.props.h
     );
-    // 拖拽开始记录容器大小，限制单次拓展的宽高需要此数据
-    this.offsetParentClientHeight = offsetParent.clientHeight;
-    this.offsetParentClientWidth = offsetParent.clientWidth;
     return onDragStart.call(this, this.props.i, x, y, {
       e,
       node,
       newPosition
     });
   };
-
-  flag: boolean = true;
 
   /**
    * onDrag event handler
@@ -512,38 +493,25 @@ export default class GridItem extends React.Component<Props, State> {
     }
     let top = this.state.dragging.top + deltaY;
     let left = this.state.dragging.left + deltaX;
-    const { isBounded, i, w, h } = this.props;
+
+    const { isBounded, i, w, h, containerWidth } = this.props;
     const positionParams = this.getPositionParams();
     
-    console.log('this.state.dragging.top:',this.state.dragging?.top,'deltaY:',deltaY,'top:', top)
-    if (top < 0 ) {
-      console.log('超过上边界')
-      // this.props.onUpdateBase?.({ x: this.props.base.x, y: this.props.base.y + 50 });
-      this.flag = false;
-    }
-
-    let rightMaxWidth: number = 0;
-    let bottomMaxHeight: number = 0;
+    // Boundary calculations; keeps items within the grid
     if (isBounded) {
-        const { margin, rowHeight } = this.props;
-        const bottomBoundary = this.offsetParentClientHeight - calcGridItemWHPx(h, rowHeight, margin[1]);
-        // if (top < 0) {
-        //   console.log('超过上边界')
-        // } else if (top > bottomBoundary)  {
-        //   console.log('超过下边界')
-        // }
-        top = clamp(top, 0 - onceExpand.height, bottomBoundary + onceExpand.height);
-        bottomMaxHeight = top + calcGridItemWHPx(h, rowHeight, margin[1]);
+      const { offsetParent } = node;
+
+      if (offsetParent) {
+        const { margin, rowHeight, containerPadding } = this.props;
+        const bottomBoundary =
+          offsetParent.clientHeight - calcGridItemWHPx(h, rowHeight, margin[1]);
+        top = clamp(top - containerPadding[1], 0, bottomBoundary);
+
         const colWidth = calcGridColWidth(positionParams);
         const rightBoundary =
-        this.offsetParentClientWidth - calcGridItemWHPx(w, colWidth, margin[0]);
-        // if (left < 0) {
-        //   console.log('超过左边界')
-        // } else if (left > rightBoundary)  {
-        //   console.log('超过右边界')
-        // }
-        left = clamp(left, 0 - onceExpand.width, rightBoundary + onceExpand.width);
-        rightMaxWidth = left + calcGridItemWHPx(w, colWidth, margin[0]);
+          containerWidth - calcGridItemWHPx(w, colWidth, margin[0]);
+        left = clamp(left - containerPadding[0], 0, rightBoundary);
+      }
     }
 
     const newPosition: PartialPosition = { top, left };
@@ -561,9 +529,7 @@ export default class GridItem extends React.Component<Props, State> {
     return onDrag.call(this, i, x, y, {
       e,
       node,
-      newPosition,
-      bottomMaxHeight,
-      rightMaxWidth
+      newPosition
     });
   };
 
@@ -670,13 +636,11 @@ export default class GridItem extends React.Component<Props, State> {
       isDraggable,
       isResizable,
       droppingPosition,
-      useCSSTransforms,
-      base
+      useCSSTransforms
     } = this.props;
 
     const pos = calcGridItemPosition(
       this.getPositionParams(),
-      base,
       x,
       y,
       w,
