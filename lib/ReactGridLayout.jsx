@@ -12,6 +12,7 @@ import {
   fastRGLPropsEqual,
   getAllCollisions,
   getLayoutItem,
+  left,
   moveElement,
   noop,
   right,
@@ -19,7 +20,11 @@ import {
   withLayoutItem,
 } from "./utils";
 
-import { calcGridColWidth, calcXY } from "./calculateUtils";
+import {
+  calcGridColWidth,
+  calcGridItemPosition,
+  calcXY,
+} from "./calculateUtils";
 
 import GridItem from "./GridItem";
 import ReactGridLayoutPropTypes from "./ReactGridLayoutPropTypes";
@@ -74,13 +79,22 @@ try {
   /* Ignore */
 }
 
+function getScreenSize() {
+  var width = window.innerWidth || document.documentElement?.clientWidth || document.body?.clientWidth;
+  var height = window.innerHeight || document.documentElement?.clientHeight || document.body?.clientHeight;
+  return {
+      width: width,
+      height: height
+  };
+}
+
 // todo 单次拓展的宽高限制，后续通过 props 传递,容器初始宽高，必须是此参数的倍数，不然会有bug（比如: 初始宽度是500，这里设置300，2倍会出现宽度为600px的情况）,暂不处理
 export const onceExpand: {
   width: number,
   height: number
 } = {
-  width: 200,
-  height: 100,
+  width: getScreenSize().width,
+  height: getScreenSize().height,
 }
 
 // todo 容器的初始宽度 800，容器的初始高度 1200，后续通过 props 传递
@@ -88,8 +102,8 @@ export const initContainer: {
   width: number,
   height: number
 } = {
-  width: 200,
-  height: 300,
+  width: getScreenSize().width,
+  height: getScreenSize().height,
 }
 
 /**
@@ -254,7 +268,6 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const containerPaddingY = this.props.containerPadding
       ? this.props.containerPadding[1]
       : this.props.margin[1];
-    console.log('nbRow:',nbRow);
     return (
       nbRow * this.props.rowHeight +
       (nbRow - 1) * this.props.margin[1] +
@@ -392,6 +405,18 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     });
   };
 
+
+  getPositionParams(props: Props = this.props): PositionParams {
+    return {
+      cols: props.cols, // 列数
+      containerPadding: props.containerPadding || props.margin, // 容器内边距
+      containerWidth: props.width, // 容器宽度
+      margin: props.margin, // 外边距
+      maxRows: props.maxRows, // 最大行数
+      rowHeight: props.rowHeight // 行高
+    };
+  }
+
   /**
    * When dragging stops, figure out which position the element is closest to and update its x and y.
    * @param  {String} i Index of the child.
@@ -429,13 +454,71 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     );
 
     // Set state
-    const newLayout = allowOverlap
+    let newLayout = allowOverlap
       ? layout
       : compact(layout, compactType(this.props), cols);
-
+    
+    let minXItem: ?LayoutItem;
+    layout.forEach(item => {
+      if(item.x < (minXItem?.x || 0)) {
+        minXItem = item
+      }
+    })
+    console.log('minXItem:', minXItem)
+    const { x: onceMoveX } = calcXY(this.getPositionParams(this.props), initContainer.height, initContainer.width, 0, 0, true);
+    // 向左边扩大空间，向右移动元素，修改滚动条左侧距离
+    if(minXItem) {
+      const position = calcGridItemPosition(this.getPositionParams(this.props), { x: 0, y: 0 }, minXItem.x, minXItem.y, minXItem.w, minXItem.h, null)
+      newLayout = newLayout.map(item => {
+        return {
+          ...item,
+          x: item.x + onceMoveX,
+        };
+      })
+      const scrollLeft = initContainer.width + position.left;
+      // console.log('addX:', addX)
+      console.log('scrollLeft:', scrollLeft)
+      const scrollContainerDom = document.querySelector('.react-grid-layout')?.parentElement;
+      if (scrollContainerDom) {
+        window.setTimeout(() => {
+          scrollContainerDom.scrollLeft = scrollLeft;
+        }, 0)
+      }
+    } else {
+      // 向右边缩小空间，向左移动元素
+      const firstLeftX = left(newLayout);
+      const position = calcGridItemPosition(this.getPositionParams(this.props), { x: 0, y: 0 }, firstLeftX, 0, 0, 0, null);
+      const multiplier = Math.floor(position.left / initContainer.width);
+      const countX = onceMoveX * multiplier;
+      if(multiplier > 0) {
+        newLayout = newLayout.map(item => {
+          return {
+            ...item,
+            x: item.x - countX,
+          };
+        })
+        // 如果移动的元素，依然是最左侧的那个元素，修改滚动条左侧的距离，改成 0
+        let minXItem= newLayout[0];
+        newLayout.forEach(item => {
+          if(item.x < (minXItem?.x || 0)) {
+            minXItem = item
+          }
+        })
+        if (this.state.activeDrag?.i && minXItem?.i === this.state.activeDrag?.i) {
+          const scrollContainerDom = document.querySelector('.react-grid-layout')?.parentElement;
+          if (scrollContainerDom && multiplier > 0) {
+            window.setTimeout(() => {
+              scrollContainerDom.scrollLeft = 0;
+            }, 0)
+          }
+         }
+      }
+    }
+    
     this.props.onDragStop(newLayout, oldDragItem, l, null, e, node);
 
     const { oldLayout } = this.state;
+
     this.setState({
       activeDrag: null,
       layout: newLayout,
@@ -664,19 +747,20 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const { rowHeight, margin } = this.props;
     const addY = onceExpand.height / (rowHeight + margin[0]);
     // let tempActiveDrag = null;
-    // if (this.state.activeDrag) {   
+    // if (this.state.activeDrag) {
     //   tempActiveDrag = cloneLayoutItem(this.state.activeDrag);
     //   tempActiveDrag.y = tempActiveDrag.y + addY
     // }
     this.setState({
       layout: this.state.layout.map(item => {
-        item.y = item.y + addY
+        item.y = item.y +addY
         return item
       }),
       // activeDrag: tempActiveDrag
     });
 
     // window.setTimeout(() => {
+    //   console.log(this.state);
     //   debugger;
     //  },0)
 
@@ -940,9 +1024,10 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0 ) / onceExpand.width) * onceExpand.width);
     const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0 ) / onceExpand.height) * onceExpand.height);
 
+    // console.log('containerWidth:', containerWidth + this.state.base.y);
     const mergedStyle = {
-      minWidth: containerWidth + this.state.base.x,
-      height: containerHeight + this.state.base.y,
+      width: containerWidth,
+      // height: containerHeight + this.state.base.y,
       ...style
     };
 

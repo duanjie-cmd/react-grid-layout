@@ -518,7 +518,7 @@ export default class GridItem extends React.Component<Props, State> {
     console.log('this.state.dragging.top:',this.state.dragging?.top,'deltaY:',deltaY,'top:', top)
     if (top < 0 ) {
       console.log('超过上边界')
-      this.props.onUpdateBase?.({ x: this.props.base.x, y: this.props.base.y + 50 });
+      // this.props.onUpdateBase?.({ x: this.props.base.x, y: this.props.base.y + 50 });
       this.flag = false;
     }
 
