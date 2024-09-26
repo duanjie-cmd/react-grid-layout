@@ -12,12 +12,14 @@ import {
   fastRGLPropsEqual,
   getAllCollisions,
   getLayoutItem,
+  getScreenSize,
   left,
   moveElement,
   noop,
   right,
   synchronizeLayoutWithChildren,
-  withLayoutItem
+  top,
+  withLayoutItem,
 } from "./utils";
 
 import {
@@ -75,24 +77,6 @@ try {
   /* Ignore */
 }
 
-function getScreenSize() {
-  var width = window.innerWidth || document.documentElement?.clientWidth || document.body?.clientWidth;
-  var height = window.innerHeight || document.documentElement?.clientHeight || document.body?.clientHeight;
-  return {
-      width: width,
-      height: height
-  };
-}
-
-// todo 容器的初始宽度和初始高度，后续通过 props 传递
-export const initContainer: {
-  width: number,
-  height: number
-} = {
-  width: getScreenSize().width,
-  height: getScreenSize().height,
-}
-
 /**
  * A reactive, fluid grid layout with draggable, resizable components.
  */
@@ -104,6 +88,10 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   static propTypes = ReactGridLayoutPropTypes;
 
   static defaultProps: DefaultProps = {
+    initContainer: {
+      width: getScreenSize().width,
+      height: getScreenSize().height,
+    },
     autoSize: true,
     cols: 12,
     className: "",
@@ -359,7 +347,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     // Move the element to the dragged location.
     const isUserAction = true;
-    // TODO dj，这里没看懂，这里有碰撞检测，移动相关元素的逻辑
+    // TODO 这里没看懂，这里有碰撞检测，移动相关元素的逻辑
     layout = moveElement(
       layout,
       l,
@@ -377,7 +365,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     this.setState({
       layout: allowOverlap
         ? layout
-        : compact(layout, compactType(this.props), cols), // TODO dj
+        : compact(layout, compactType(this.props), cols), // TODO 这里没看懂，如果不允许重叠，调整layout的元素
       activeDrag: placeholder
     });
   };
@@ -412,7 +400,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     if (!this.state.activeDrag) return;
     const { oldDragItem } = this.state;
     let { layout } = this.state;
-    const { cols, preventCollision, allowOverlap } = this.props;
+    const { cols, preventCollision, allowOverlap, initContainer } = this.props;
     const l = getLayoutItem(layout, i);
     if (!l) return;
 
@@ -437,17 +425,21 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     
     // 寻找最左侧且 x 小于 0 的元素
     let minXItem: ?LayoutItem;
+    // 寻找最上侧且 y 小于 0 的元素
+    let minYItem: ?LayoutItem;
     layout.forEach(item => {
       if(item.x < (minXItem?.x || 0)) {
         minXItem = item
       }
+      if(item.y < (minYItem?.y || 0)) {
+        minYItem = item
+      }
     })
+    const positionParams = this.getPositionParams(this.props);
     // 由于宽度和高度的增加和减少，都是以初始宽高的倍数来增长或减少，计算容器初始宽度，需要移动多少x，容器初始高度，需要移动多少y
-    const { x: onceMoveX } = calcXY(this.getPositionParams(this.props), initContainer.height, initContainer.width, 0, 0, true);
+    const { x: onceMoveX,y: onceMoveY } = calcXY(positionParams, initContainer.height, initContainer.width, 0, 0, true);
     // 如果找到最左侧且 x 小于 0 的元素，说明需要向左边扩大空间，向右移动元素，修改滚动条左侧距离
     if (minXItem) {
-      // 计算最左侧元素的left 值，此时是负数
-      const position = calcGridItemPosition(this.getPositionParams(this.props), minXItem.x, minXItem.y, minXItem.w, minXItem.h, null)
       // 单次拓展一屏，向右移动元素
       newLayout = newLayout.map(item => {
         return {
@@ -455,10 +447,10 @@ export default class ReactGridLayout extends React.Component<Props, State> {
           x: item.x + onceMoveX,
         };
       })
+      // 计算最左侧元素的left值
+      const position = calcGridItemPosition(positionParams, minXItem.x + onceMoveX, minXItem.y, minXItem.w, minXItem.h, null)
       // 此时由于宽度和元素位置发生变化，需要修改滚动条的位置，滚动到刚好能展示最左侧的元素，计算滚动条左侧的距离
-      const scrollLeft = initContainer.width + position.left;
-      // console.log('addX:', addX)
-      // console.log('scrollLeft:', scrollLeft)
+      const scrollLeft = position.left - 1;
       const scrollContainerDom = document.querySelector('.react-grid-layout')?.parentElement;
       if (scrollContainerDom) {
         window.setTimeout(() => {
@@ -470,7 +462,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       // 找到最左侧的x值
       const firstLeftX = left(newLayout);
       // 计算最左侧元素的left值
-      const position = calcGridItemPosition(this.getPositionParams(this.props), firstLeftX, 0, 0, 0, null);
+      const position = calcGridItemPosition(positionParams, firstLeftX, 0, 0, 0, null);
       // 由于是按照倍数，减少宽度，所以需要计算减少倍数,向下取整
       const multiplier = Math.floor(position.left / initContainer.width);
       const countX = onceMoveX * multiplier;
@@ -498,6 +490,50 @@ export default class ReactGridLayout extends React.Component<Props, State> {
           }
          }
       }
+    }
+    // 和左右方向同理
+    if (minYItem) { 
+      newLayout = newLayout.map(item => {
+        return {
+          ...item,
+          y: item.y + onceMoveY,
+        };
+      })
+      const position = calcGridItemPosition(positionParams, minYItem.x, minYItem.y + onceMoveY, minYItem.w, minYItem.h, null)
+      const scrollTop = position.top - 1;
+      const scrollContainerDom = document.querySelector('.react-grid-layout')?.parentElement;
+      if (scrollContainerDom) {
+        window.setTimeout(() => {
+          scrollContainerDom.scrollTop = scrollTop;
+        }, 0)
+      }
+    } else {
+      const firstTopY = top(newLayout);
+      const position = calcGridItemPosition(positionParams, 0, firstTopY, 0, 0, null);
+      const multiplier = Math.floor(position.top / initContainer.height);
+      const countY = onceMoveY * multiplier;
+      if(multiplier > 0) {
+        newLayout = newLayout.map(item => {
+          return {
+            ...item,
+            y: item.y - countY,
+          };
+        })
+      }
+      let minYItem = newLayout[0];
+      newLayout.forEach(item => {
+        if(item.y < (minYItem?.y || 0)) {
+          minYItem = item
+        }
+      })
+      if (this.state.activeDrag?.i && minYItem?.i === this.state.activeDrag?.i) {
+        const scrollContainerDom = document.querySelector('.react-grid-layout')?.parentElement;
+        if (scrollContainerDom && multiplier > 0) {
+          window.setTimeout(() => {
+            scrollContainerDom.scrollTop = 0;
+          }, 0)
+        }
+       }
     }
     
     this.props.onDragStop(newLayout, oldDragItem, l, null, e, node);
@@ -964,17 +1000,17 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   };
 
   render(): React.Element<"div"> {
-    const { className, style, isDroppable, innerRef } = this.props;
+    const { className, style, isDroppable, innerRef, initContainer } = this.props;
     // console.log("ReactGridLayout render props:", this.props);
 
     const mergedClassName = clsx(layoutClassName, className);
     // 容器的宽度，最小为初始宽度，且宽度为初始宽度的倍数
     const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0 ) / initContainer.width) * initContainer.width);
-    // const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0 ) / initContainer.height) * initContainer.height);
+    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0 ) / initContainer.height) * initContainer.height);
 
     const mergedStyle = {
       width: containerWidth,
-      // height: containerHeight + this.state.base.y,
+      height: containerHeight + 1,
       ...style
     };
 
