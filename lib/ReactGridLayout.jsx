@@ -151,13 +151,6 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
   dragEnterCounter: number = 0;
 
-  componentDidMount() {
-    this.setState({ mounted: true });
-    // Possibly call back with layout on mount. This should be done after correcting the layout width
-    // to ensure we don't rerender with the wrong width.
-    this.onLayoutMaybeChanged(this.state.layout, this.props.layout);
-  }
-
   static getDerivedStateFromProps(
     nextProps: Props,
     prevState: State
@@ -205,6 +198,13 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     return null;
   }
 
+  componentDidMount () {
+    this.setState({ mounted: true });
+    // Possibly call back with layout on mount. This should be done after correcting the layout width
+    // to ensure we don't rerender with the wrong width.
+    this.onLayoutMaybeChanged(this.state.layout, this.props.layout);
+  }
+
   shouldComponentUpdate(nextProps: Props, nextState: State): boolean {
     return (
       // NOTE: this is almost always unequal. Therefore the only way to get better performance
@@ -222,7 +222,6 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     if (!this.state.activeDrag) {
       const newLayout = this.state.layout;
       const oldLayout = prevState.layout;
-
       this.onLayoutMaybeChanged(newLayout, oldLayout);
     }
   }
@@ -951,13 +950,15 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       this.props.allowOverlap
     );
 
-    // console.log("ReactGridLayout:" ,"removeDroppingPlaceholder",newLayout);
+    const { oldLayout } = this.state;
     this.setState({
       layout: newLayout,
       droppingDOMNode: null,
       activeDrag: null,
       droppingPosition: undefined
     });
+
+    this.onLayoutMaybeChanged(newLayout, oldLayout);
   };
   
   onDragLeave: EventHandler = e => {
