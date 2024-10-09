@@ -107,6 +107,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     isDraggable: true,
     isResizable: true,
     allowOverlap: false,
+    collisionOnDrop: false,
     isDroppable: false,
     useCSSTransforms: true,
     transformScale: 1,
@@ -176,13 +177,17 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     }
 
     // We need to regenerate the layout.
+    let compactOverlap = nextProps.allowOverlap;
+    if (nextProps.collisionOnDrop) {
+      compactOverlap = false;
+    }
     if (newLayoutBase) {
       const newLayout = synchronizeLayoutWithChildren(
         newLayoutBase,
         nextProps.children,
         nextProps.cols,
         compactType(nextProps),
-        nextProps.allowOverlap
+        compactOverlap
       );
 
       return {
@@ -395,14 +400,16 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     y,
     { e, node }
   ) => {
-    // console.log('onDragStop');
     if (!this.state.activeDrag) return;
     const { oldDragItem } = this.state;
     let { layout } = this.state;
-    const { cols, preventCollision, allowOverlap, initContainer } = this.props;
+    const { cols, preventCollision, allowOverlap, collisionOnDrop, initContainer } = this.props;
     const l = getLayoutItem(layout, i);
     if (!l) return;
-
+    let compactOverlap = allowOverlap;
+    if (allowOverlap && collisionOnDrop) {
+      compactOverlap = false;
+    }
     // Move the element here
     const isUserAction = true;
     layout = moveElement(
@@ -414,13 +421,14 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       preventCollision,
       compactType(this.props),
       cols,
-      allowOverlap
+      compactOverlap,
+      collisionOnDrop,
     );
-
+    
     // Set state
-    let newLayout = allowOverlap
+    let newLayout = compactOverlap
       ? layout
-      : compact(layout, compactType(this.props), cols);
+      : compact(layout, compactType(this.props), cols, compactOverlap, collisionOnDrop);
     
     // 寻找最左侧且 x 小于 0 的元素
     let minXItem: ?LayoutItem;
@@ -687,13 +695,18 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     { e, node }
   ) => {
     const { layout, oldResizeItem } = this.state;
-    const { cols, allowOverlap } = this.props;
+    const { cols, allowOverlap, collisionOnDrop } = this.props;
     const l = getLayoutItem(layout, i);
 
+    let compactOverlap = allowOverlap;
+    if (collisionOnDrop) {
+      compactOverlap = false;
+    }
+
     // Set state
-    const newLayout = allowOverlap
+    const newLayout = compactOverlap
       ? layout
-      : compact(layout, compactType(this.props), cols);
+      : compact(layout, compactType(this.props), cols, compactOverlap, collisionOnDrop);
 
     this.props.onResizeStop(newLayout, oldResizeItem, l, null, e, node);
 
@@ -978,14 +991,12 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   };
 
   onDragEnter: EventHandler = e => {
-    // console.log("ReactGridLayout:" ,"onDragEnter");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
     this.dragEnterCounter++;
   };
 
   onDrop: EventHandler = (e: Event) => {
-    // console.log("ReactGridLayout:" ,"onDrop");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
     const { droppingItem } = this.props;
@@ -1015,7 +1026,6 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       ...style
     };
 
-    // console.log('render:',mergedStyle)
 
     return (
       <div
