@@ -116,3 +116,20 @@
   bottom: 0;
   transform: rotate(45deg);
 }
+
+.react-grid-layout-top-area {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background-color: rgba(27, 177, 219, 0.2);
+}
+.react-grid-layout-left-area {
+  position: fixed;
+  top: 0;
+  bottom:0;
+  left: 0;
+  width: 10px;
+  background-color: rgba(27, 177, 219, 0.2);
+}
