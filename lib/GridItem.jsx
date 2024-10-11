@@ -116,6 +116,7 @@ type DefaultProps = {
   minW: number,
   maxH: number,
   maxW: number,
+  delay?: number,
   transformScale: number
 };
 
@@ -190,6 +191,7 @@ export default class GridItem extends React.Component<Props, State> {
     isResizable: PropTypes.bool.isRequired,
     isBounded: PropTypes.bool.isRequired,
     static: PropTypes.bool,
+    delay: PropTypes.number,
 
     // Use CSS transforms instead of top/left
     useCSSTransforms: PropTypes.bool.isRequired,
@@ -210,6 +212,7 @@ export default class GridItem extends React.Component<Props, State> {
   };
 
   static defaultProps: DefaultProps = {
+    delay: undefined,
     className: "",
     cancel: "",
     handle: "",
@@ -442,9 +445,20 @@ export default class GridItem extends React.Component<Props, State> {
    * @param  {Event}  e             event data
    * @param  {Object} callbackData  an object with node, delta and position information
    */
-  onDragStart: (Event, ReactDraggableCallbackData) => void = (e, { node }) => {
-    const { onDragStart, transformScale } = this.props;
+  onDragStart: (Event, ReactDraggableCallbackData) => Promise<void> = async (e, { node }) => {
+    const { onDragStart, transformScale, delay } = this.props;
     if (!onDragStart) return;
+
+    if (delay) {
+      const result = await new Promise(resolve => {
+        this.delayTimer = setTimeout(() => {
+          resolve(true)
+        }, delay);
+      })
+      if (!result) {
+        return
+      }
+    }
 
     const newPosition: PartialPosition = { top: 0, left: 0 };
 
@@ -485,10 +499,14 @@ export default class GridItem extends React.Component<Props, State> {
     e,
     { node, deltaX, deltaY } // node 是拖拽的元素，deltaX、deltaY 是拖拽过程中元素的水平和垂直移动距离
   ) => {
-    const { onDrag } = this.props;
+    const { onDrag, delay } = this.props;
     if (!onDrag) return;
 
     if (!this.state.dragging) {
+      if (delay > 0) {
+        clearTimeout(this.delayTimer);
+        return;
+      }
       throw new Error("onDrag called before onDragStart.");
     }
     let top = this.state.dragging.top + deltaY;
@@ -532,10 +550,13 @@ export default class GridItem extends React.Component<Props, State> {
    * @param  {Object} callbackData  an object with node, delta and position information
    */
   onDragStop: (Event, ReactDraggableCallbackData) => void = (e, { node }) => {
-    const { onDragStop } = this.props;
+    const { onDragStop, delay } = this.props;
     if (!onDragStop) return;
 
     if (!this.state.dragging) {
+      if (delay > 0) {
+        return;
+      }
       throw new Error("onDragEnd called before onDragStart.");
     }
     const { w, h, i } = this.props;
