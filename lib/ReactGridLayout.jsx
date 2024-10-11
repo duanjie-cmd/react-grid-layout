@@ -118,6 +118,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     verticalCompact: true,
     compactType: "vertical",
     preventCollision: false,
+    delay: undefined,
     droppingItem: {
       i: "__dropping-elem__",
       h: 1,
@@ -807,6 +808,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const l = getLayoutItem(this.state.layout, String(child.key));
     if (!l) return null;
     const {
+      delay,
       width,
       cols,
       margin,
@@ -843,6 +845,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     return (
       <GridItem
+        delay={delay}
         containerWidth={width}
         cols={cols}
         margin={margin}
