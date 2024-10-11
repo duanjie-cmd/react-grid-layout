@@ -12,13 +12,21 @@ import {
   fastRGLPropsEqual,
   getAllCollisions,
   getLayoutItem,
+  getScreenSize,
+  left,
   moveElement,
   noop,
+  right,
   synchronizeLayoutWithChildren,
-  withLayoutItem
+  top,
+  withLayoutItem,
 } from "./utils";
 
-import { calcXY } from "./calculateUtils";
+import {
+  calcGridColWidth,
+  calcGridItemPosition,
+  calcXY,
+} from "./calculateUtils";
 
 import GridItem from "./GridItem";
 import ReactGridLayoutPropTypes from "./ReactGridLayoutPropTypes";
@@ -53,7 +61,9 @@ type State = {
   // Mirrored props
   children: ReactChildrenArray<ReactElement<any>>,
   compactType?: CompactType,
-  propsLayout?: Layout
+  propsLayout?: Layout,
+  isDragOverTop: boolean,
+  isDragOverLeft: boolean
 };
 
 import type { Props, DefaultProps } from "./ReactGridLayoutPropTypes";
@@ -69,10 +79,10 @@ try {
   /* Ignore */
 }
 
+const RollingReservationDistance = 10;
 /**
  * A reactive, fluid grid layout with draggable, resizable components.
  */
-
 export default class ReactGridLayout extends React.Component<Props, State> {
   // TODO publish internal ReactClass displayName transform
   static displayName: ?string = "ReactGridLayout";
@@ -81,6 +91,11 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   static propTypes = ReactGridLayoutPropTypes;
 
   static defaultProps: DefaultProps = {
+    drayOverBoundary: 10,
+    initContainer: {
+      width: getScreenSize().width,
+      height: getScreenSize().height,
+    },
     autoSize: true,
     cols: 12,
     className: "",
@@ -96,6 +111,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     isDraggable: true,
     isResizable: true,
     allowOverlap: false,
+    collisionOnDrop: false,
     isDroppable: false,
     useCSSTransforms: true,
     transformScale: 1,
@@ -135,17 +151,12 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     oldResizeItem: null,
     resizing: false,
     droppingDOMNode: null,
-    children: []
+    children: [],
+    isDragOverTop: false,
+    isDragOverLeft: false
   };
 
   dragEnterCounter: number = 0;
-
-  componentDidMount() {
-    this.setState({ mounted: true });
-    // Possibly call back with layout on mount. This should be done after correcting the layout width
-    // to ensure we don't rerender with the wrong width.
-    this.onLayoutMaybeChanged(this.state.layout, this.props.layout);
-  }
 
   static getDerivedStateFromProps(
     nextProps: Props,
@@ -172,13 +183,17 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     }
 
     // We need to regenerate the layout.
+    let compactOverlap = nextProps.allowOverlap;
+    if (nextProps.collisionOnDrop) {
+      compactOverlap = false;
+    }
     if (newLayoutBase) {
       const newLayout = synchronizeLayoutWithChildren(
         newLayoutBase,
         nextProps.children,
         nextProps.cols,
         compactType(nextProps),
-        nextProps.allowOverlap
+        compactOverlap
       );
 
       return {
@@ -192,6 +207,13 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     }
 
     return null;
+  }
+
+  componentDidMount () {
+    this.setState({ mounted: true });
+    // Possibly call back with layout on mount. This should be done after correcting the layout width
+    // to ensure we don't rerender with the wrong width.
+    this.onLayoutMaybeChanged(this.state.layout, this.props.layout);
   }
 
   shouldComponentUpdate(nextProps: Props, nextState: State): boolean {
@@ -211,7 +233,6 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     if (!this.state.activeDrag) {
       const newLayout = this.state.layout;
       const oldLayout = prevState.layout;
-
       this.onLayoutMaybeChanged(newLayout, oldLayout);
     }
   }
@@ -220,7 +241,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
    * Calculates a pixel value for the container.
    * @return {String} Container height in pixels.
    */
-  containerHeight(): ?string {
+  containerHeight(): ?number {
     if (!this.props.autoSize) return;
     const nbRow = bottom(this.state.layout);
     const containerPaddingY = this.props.containerPadding
@@ -229,8 +250,41 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     return (
       nbRow * this.props.rowHeight +
       (nbRow - 1) * this.props.margin[1] +
-      containerPaddingY * 2 +
-      "px"
+      containerPaddingY * 2
+    );
+  }
+
+  /**
+   * Calculates a pixel value for the container.
+   * @return {String} Container height in pixels.
+   */
+  containerWidth(): ?number {
+    if (!this.props.autoSize) return;
+    const nbColumn= right(this.state.layout);
+    const containerPaddingX = this.props.containerPadding
+      ? this.props.containerPadding[0]
+      : this.props.margin[0];
+    const {
+      margin,
+      cols,
+      rowHeight,
+      maxRows,
+      width,
+      containerPadding,
+    } = this.props;
+    const positionParams: PositionParams = {
+      cols,
+      margin,
+      maxRows,
+      rowHeight,
+      containerWidth: width,
+      containerPadding: containerPadding || margin
+    };
+    const colWidth = calcGridColWidth(positionParams);
+    return (
+      nbColumn * colWidth+
+      (nbColumn - 1) * this.props.margin[0] +
+      containerPaddingX * 2
     );
   }
 
@@ -264,7 +318,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     this.setState({
       oldDragItem: cloneLayoutItem(l),
-      oldLayout: layout,
+      oldLayout: layout, // todo 写法优化，这里需要深拷贝，使用lodash,JSON.parse(JSON.stringify(layout))
       activeDrag: placeholder
     });
 
@@ -303,6 +357,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     // Move the element to the dragged location.
     const isUserAction = true;
+    // TODO 这里没看懂，这里有碰撞检测，移动相关元素的逻辑
     layout = moveElement(
       layout,
       l,
@@ -320,10 +375,56 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     this.setState({
       layout: allowOverlap
         ? layout
-        : compact(layout, compactType(this.props), cols),
+        : compact(layout, compactType(this.props), cols), // TODO 这里没看懂，如果不允许重叠，调整layout的元素
       activeDrag: placeholder
     });
   };
+
+
+  getPositionParams(props: Props = this.props): PositionParams {
+    return {
+      cols: props.cols, // 列数
+      containerPadding: props.containerPadding || props.margin, // 容器内边距
+      containerWidth: props.width, // 容器宽度
+      margin: props.margin, // 外边距
+      maxRows: props.maxRows, // 最大行数
+      rowHeight: props.rowHeight // 行高
+    };
+  }
+  
+  getOnceMove(): { onceMoveX: number, onceMoveY: number } {
+    const { initContainer } = this.props;
+    const positionParams = this.getPositionParams(this.props);
+    // 由于宽度和高度的增加和减少，都是以初始宽高的倍数来增长或减少，计算容器初始宽度，需要移动多少x，容器初始高度，需要移动多少y
+    const { x: onceMoveX, y: onceMoveY } = calcXY(positionParams, initContainer.height, initContainer.width, 0, 0, true);
+    return {
+      onceMoveX,
+      onceMoveY
+    }
+  }
+
+  setScroll (scrollParams: { scrollLeft?: number, scrollTop?: number }) {
+    const scrollContainerDom = document.querySelector('.react-grid-layout')?.parentElement;
+    if (scrollContainerDom) {
+      window.setTimeout(() => {
+        if (scrollParams.scrollLeft !== undefined) {
+          scrollContainerDom.scrollLeft = scrollParams.scrollLeft;
+        }
+        if (scrollParams.scrollTop !== undefined) {
+          scrollContainerDom.scrollTop = scrollParams.scrollTop;
+        }
+      }, 0)
+    }
+  }
+
+  getCompactOverlap (): boolean {
+    const { allowOverlap, collisionOnDrop } = this.props;
+    let compactOverlap = allowOverlap;
+    if (allowOverlap && collisionOnDrop) {
+      compactOverlap = false;
+    }
+    return compactOverlap;
+  }
 
   /**
    * When dragging stops, figure out which position the element is closest to and update its x and y.
@@ -340,13 +441,12 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     { e, node }
   ) => {
     if (!this.state.activeDrag) return;
-
     const { oldDragItem } = this.state;
     let { layout } = this.state;
-    const { cols, preventCollision, allowOverlap } = this.props;
+    const { cols, preventCollision, collisionOnDrop, initContainer } = this.props;
     const l = getLayoutItem(layout, i);
     if (!l) return;
-
+    const compactOverlap = this.getCompactOverlap();
     // Move the element here
     const isUserAction = true;
     layout = moveElement(
@@ -358,14 +458,117 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       preventCollision,
       compactType(this.props),
       cols,
-      allowOverlap
+      compactOverlap,
+      collisionOnDrop,
     );
-
+    
     // Set state
-    const newLayout = allowOverlap
+    let newLayout = compactOverlap
       ? layout
-      : compact(layout, compactType(this.props), cols);
-
+      : compact(layout, compactType(this.props), cols, compactOverlap, collisionOnDrop);
+    
+    // 寻找最左侧且 x 小于 0 的元素
+    let minXItem: ?LayoutItem;
+    // 寻找最上侧且 y 小于 0 的元素
+    let minYItem: ?LayoutItem;
+    layout.forEach(item => {
+      if(item.x < (minXItem?.x || 0)) {
+        minXItem = item
+      }
+      if(item.y < (minYItem?.y || 0)) {
+        minYItem = item
+      }
+    })
+    const positionParams = this.getPositionParams(this.props);
+    const { onceMoveX,onceMoveY } = this.getOnceMove();
+    // 如果找到最左侧且 x 小于 0 的元素，说明需要向左边扩大空间，向右移动元素，修改滚动条左侧距离
+    if (minXItem) {
+      // 单次拓展一屏，向右移动元素
+      newLayout = layout.map(item => {
+        return {
+          ...item,
+          x: item.x + onceMoveX,
+        };
+      })
+      // 计算最左侧元素的left值
+      const position = calcGridItemPosition(positionParams, minXItem.x + onceMoveX, minXItem.y, minXItem.w, minXItem.h, null)
+      // 此时由于宽度和元素位置发生变化，需要修改滚动条的位置，滚动到刚好能展示最左侧的元素，计算滚动条左侧的距离
+      this.setScroll({
+        scrollLeft: position.left - RollingReservationDistance
+      })
+    } else {
+      // 向右边拖拽可能需要缩小空间、向左移动元素
+      // 找到最左侧的x值
+      const firstLeftX = left(newLayout);
+      // 计算最左侧元素的left值
+      const position = calcGridItemPosition(positionParams, firstLeftX, 0, 0, 0, null);
+      // 由于是按照倍数，减少宽度，所以需要计算减少倍数,向下取整
+      const multiplier = Math.floor(position.left / initContainer.width);
+      const countX = onceMoveX * multiplier;
+      // 如果倍数 > 0，说明需要减少宽度，向左移动元素
+      if(multiplier > 0) {
+        newLayout = newLayout.map(item => {
+          return {
+            ...item,
+            x: item.x - countX,
+          };
+        })
+        // 如果移动的元素，依然是最左侧的那个元素，修改滚动条左侧的距离，改成 0
+        let minXItem= newLayout[0];
+        newLayout.forEach(item => {
+          if(item.x < (minXItem?.x || 0)) {
+            minXItem = item
+          }
+        })
+        if (this.state.activeDrag?.i && minXItem?.i === this.state.activeDrag?.i) {
+          if (multiplier > 0) {
+            this.setScroll({
+              scrollLeft: 0
+            })
+          }
+        }
+      }
+    }
+    // 和左右方向同理
+    if (minYItem) { 
+      newLayout = layout.map(item => {
+        return {
+          ...item,
+          y: item.y + onceMoveY,
+        };
+      })
+      const position = calcGridItemPosition(positionParams, minYItem.x, minYItem.y + onceMoveY, minYItem.w, minYItem.h, null)
+      this.setScroll({
+        scrollTop: position.top - RollingReservationDistance
+      })
+    } else {
+      const firstTopY = top(newLayout);
+      const position = calcGridItemPosition(positionParams, 0, firstTopY, 0, 0, null);
+      const multiplier = Math.floor(position.top / initContainer.height);
+      const countY = onceMoveY * multiplier;
+      if(multiplier > 0) {
+        newLayout = newLayout.map(item => {
+          return {
+            ...item,
+            y: item.y - countY,
+          };
+        })
+      }
+      let minYItem = newLayout[0];
+      newLayout.forEach(item => {
+        if(item.y < (minYItem?.y || 0)) {
+          minYItem = item
+        }
+      })
+      if (this.state.activeDrag?.i && minYItem?.i === this.state.activeDrag?.i) {
+        if (multiplier > 0) {
+          this.setScroll({
+            scrollTop: 0
+          })
+        }
+       }
+    }
+    
     this.props.onDragStop(newLayout, oldDragItem, l, null, e, node);
 
     const { oldLayout } = this.state;
@@ -518,13 +721,18 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     { e, node }
   ) => {
     const { layout, oldResizeItem } = this.state;
-    const { cols, allowOverlap } = this.props;
+    const { cols, allowOverlap, collisionOnDrop } = this.props;
     const l = getLayoutItem(layout, i);
 
+    let compactOverlap = allowOverlap;
+    if (collisionOnDrop) {
+      compactOverlap = false;
+    }
+
     // Set state
-    const newLayout = allowOverlap
+    const newLayout = compactOverlap
       ? layout
-      : compact(layout, compactType(this.props), cols);
+      : compact(layout, compactType(this.props), cols, compactOverlap, collisionOnDrop);
 
     this.props.onResizeStop(newLayout, oldResizeItem, l, null, e, node);
 
@@ -644,9 +852,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
         cancel={draggableCancel}
         handle={draggableHandle}
         onDragStop={this.onDragStop}
-        onDragStart={this.onDragStart}
-        onDrag={this.onDrag}
-        onResizeStart={this.onResizeStart}
+        onDragStart={this.onDragStart} // 拖拽开始，创建 placeholder，设置 oldDragItem，oldLayout，activeDrag
+        onDrag={this.onDrag} // 拖拽过程中
+        onResizeStart={this.onResizeStart} 
         onResize={this.onResize}
         onResizeStop={this.onResizeStop}
         isDraggable={draggable}
@@ -677,6 +885,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   // Called while dragging an element. Part of browser native drag/drop API.
   // Native event target might be the layout itself, or an element within the layout.
   onDragOver: DragOverEvent => void | false = e => {
+    // console.log("ReactGridLayout:" ,"onDragOver");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
 
@@ -700,7 +909,8 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       maxRows,
       width,
       containerPadding,
-      transformScale
+      transformScale,
+      drayOverBoundary
     } = this.props;
     // Allow user to customize the dropping item or short-circuit the drop based on the results
     // of the `onDragOver(e: Event)` callback.
@@ -726,6 +936,26 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       top: layerY / transformScale,
       e
     };
+
+    if (droppingPosition.top <= drayOverBoundary) {
+      this.setState({
+        isDragOverTop: true
+      });
+    } else {
+      this.setState({
+        isDragOverTop: false
+      });
+    }
+
+    if (droppingPosition.left <= drayOverBoundary) {
+      this.setState({
+        isDragOverLeft: true
+      });
+    } else {
+      this.setState({
+        isDragOverLeft: false
+      });
+    }
 
     if (!this.state.droppingDOMNode) {
       const positionParams: PositionParams = {
@@ -768,6 +998,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     }
   };
 
+  // 清除droppingDOMNode，清除activeDrag，清除 layout 中 droppingItem
   removeDroppingPlaceholder: () => void = () => {
     const { droppingItem, cols } = this.props;
     const { layout } = this.state;
@@ -779,15 +1010,21 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       this.props.allowOverlap
     );
 
+    const { oldLayout } = this.state;
     this.setState({
       layout: newLayout,
       droppingDOMNode: null,
       activeDrag: null,
-      droppingPosition: undefined
+      droppingPosition: undefined,
+      isDragOverTop: false,
+      isDragOverLeft: false
     });
-  };
 
+    this.onLayoutMaybeChanged(newLayout, oldLayout);
+  };
+  
   onDragLeave: EventHandler = e => {
+    // console.log("ReactGridLayout:" ,"onDragLeave");
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
     this.dragEnterCounter--;
@@ -811,44 +1048,114 @@ export default class ReactGridLayout extends React.Component<Props, State> {
   onDrop: EventHandler = (e: Event) => {
     e.preventDefault(); // Prevent any browser native action
     e.stopPropagation();
-    const { droppingItem } = this.props;
-    const { layout } = this.state;
-    const item = layout.find(l => l.i === droppingItem.i);
+    const { droppingItem, cols, collisionOnDrop } = this.props;
+    const { layout,isDragOverTop,isDragOverLeft } = this.state;
+    let findDropping = layout.find(l => l.i === droppingItem.i);
+    if (!findDropping) return;
 
     // reset dragEnter counter on drop
     this.dragEnterCounter = 0;
-
     this.removeDroppingPlaceholder();
-
-    this.props.onDrop(layout, item, e);
+    const { onceMoveX,onceMoveY } = this.getOnceMove();
+    let newLayout: Layout;
+    if (isDragOverTop) {
+      newLayout = layout.map(item => {
+        if (item.i === droppingItem.i) {
+          findDropping = {
+            ...item,
+            y: Math.max(onceMoveY - item.h - 1,0)
+          };
+          return {
+            ...findDropping
+          }
+        } else {
+          return {
+            ...item,
+            y: item.y + onceMoveY,
+          };
+        }
+      })
+      const positionParams = this.getPositionParams(this.props);
+      const position = calcGridItemPosition(positionParams, findDropping.x, findDropping.y, findDropping.w, findDropping.h, null)
+      this.setScroll({
+        scrollTop: position.top - RollingReservationDistance
+      })
+    } else if (isDragOverLeft) {
+      newLayout = layout.map(item => {
+        if (item.i === droppingItem.i) {
+          findDropping = {
+            ...item,
+            x: Math.max(onceMoveX - item.w - 1,0)
+          };
+          return {
+            ...findDropping
+          }
+        } else {
+          return {
+            ...item,
+            x: item.x + onceMoveX,
+          };
+        }
+      })
+      const positionParams = this.getPositionParams(this.props);
+      const position = calcGridItemPosition(positionParams, findDropping.x, findDropping.y, findDropping.w, findDropping.h, null)
+      this.setScroll({
+        scrollLeft: position.left - RollingReservationDistance
+      })
+    } else {
+      const compactOverlap = this.getCompactOverlap();
+      newLayout =  compactOverlap
+        ? layout : compact(layout, compactType(this.props), cols, compactOverlap, collisionOnDrop)
+      console.log(newLayout)
+    }
+    this.props.onDrop(newLayout, findDropping, e);
   };
 
+  topArea(): null | React.Element<"div"> {
+    const { isDragOverTop } = this.state;
+    return isDragOverTop ? (<div className="react-grid-layout-top-area"></div>) : null;
+  }
+  leftArea(): null | React.Element<"div"> {
+    const { isDragOverLeft } = this.state;
+    return isDragOverLeft ? (<div className="react-grid-layout-left-area"></div>) : null;
+  }
+
   render(): React.Element<"div"> {
-    const { className, style, isDroppable, innerRef } = this.props;
+    const { className, style, isDroppable, innerRef, initContainer } = this.props;
+    // console.log("ReactGridLayout render props:", this.props);
 
     const mergedClassName = clsx(layoutClassName, className);
+    // 容器的宽度，最小为初始宽度，且宽度为初始宽度的倍数
+    const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0 ) / initContainer.width) * initContainer.width);
+    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0 ) / initContainer.height) * initContainer.height);
+
     const mergedStyle = {
-      height: this.containerHeight(),
+      width: containerWidth,
+      height: containerHeight + 1,
       ...style
     };
+
 
     return (
       <div
         ref={innerRef}
         className={mergedClassName}
-        style={mergedStyle}
-        onDrop={isDroppable ? this.onDrop : noop}
-        onDragLeave={isDroppable ? this.onDragLeave : noop}
-        onDragEnter={isDroppable ? this.onDragEnter : noop}
-        onDragOver={isDroppable ? this.onDragOver : noop}
+        style = { mergedStyle }
+        // 处理元素拖拽到容器内的事件, 进入、在上方、离开、释放事件
+        onDrop={isDroppable ? this.onDrop : noop} // 放置目标上释放被拖动的元素，松开鼠标，清除 removeDroppingPlaceholder，还原 this.dragEnterCounter，执行 props 中的 onDrop 函数
+        onDragEnter={isDroppable ? this.onDragEnter : noop} // 拖拽元素进入，this.dragEnterCounter++;
+        onDragOver={isDroppable ? this.onDragOver : noop} // 拖拽元素在上方，执行 props 中的 onDropDragOver 函数，添加 droppingDOMNode，计算 droppingPosition，在 layout 中添加数据
+        onDragLeave={isDroppable ? this.onDragLeave : noop}  // 拖拽元素离开， 通过 this.dragEnterCounter 判断是否清除 removeDroppingPlaceholder
       >
         {React.Children.map(this.props.children, child =>
           this.processGridItem(child)
         )}
-        {isDroppable &&
-          this.state.droppingDOMNode &&
-          this.processGridItem(this.state.droppingDOMNode, true)}
-        {this.placeholder()}
+        {/* 外部元素拖拽的色块背景色，渲染 droppingDOMNode */}
+        {isDroppable && this.state.droppingDOMNode && this.processGridItem(this.state.droppingDOMNode, true)} 
+        {/* 内部元素拖拽过程中，拖拽的色块背景色，渲染 activeDrag */ }
+        { this.placeholder() }
+        { this.topArea() }
+        { this.leftArea() }
       </div>
     );
   }

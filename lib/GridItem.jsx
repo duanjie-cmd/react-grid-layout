@@ -303,12 +303,12 @@ export default class GridItem extends React.Component<Props, State> {
 
   getPositionParams(props: Props = this.props): PositionParams {
     return {
-      cols: props.cols,
-      containerPadding: props.containerPadding,
-      containerWidth: props.containerWidth,
-      margin: props.margin,
-      maxRows: props.maxRows,
-      rowHeight: props.rowHeight
+      cols: props.cols, // 列数
+      containerPadding: props.containerPadding, // 容器内边距
+      containerWidth: props.containerWidth, // 容器宽度
+      margin: props.margin, // 外边距
+      maxRows: props.maxRows, // 最大行数
+      rowHeight: props.rowHeight // 行高
     };
   }
 
@@ -355,7 +355,7 @@ export default class GridItem extends React.Component<Props, State> {
     return (
       <DraggableCore
         disabled={!isDraggable}
-        onStart={this.onDragStart}
+        onStart={this.onDragStart} // 计算top、left、设置到 dragging 数据中，计算 x、y 调用 props 中的 onDragStart
         onDrag={this.onDrag}
         onStop={this.onDragStop}
         handle={this.props.handle}
@@ -449,7 +449,7 @@ export default class GridItem extends React.Component<Props, State> {
     const newPosition: PartialPosition = { top: 0, left: 0 };
 
     // TODO: this wont work on nested parents
-    const { offsetParent } = node;
+    const { offsetParent } = node; // node 就是拖拽的元素
     if (!offsetParent) return;
     const parentRect = offsetParent.getBoundingClientRect();
     const clientRect = node.getBoundingClientRect();
@@ -469,7 +469,6 @@ export default class GridItem extends React.Component<Props, State> {
       this.props.w,
       this.props.h
     );
-
     return onDragStart.call(this, this.props.i, x, y, {
       e,
       node,
@@ -484,7 +483,7 @@ export default class GridItem extends React.Component<Props, State> {
    */
   onDrag: (Event, ReactDraggableCallbackData) => void = (
     e,
-    { node, deltaX, deltaY }
+    { node, deltaX, deltaY } // node 是拖拽的元素，deltaX、deltaY 是拖拽过程中元素的水平和垂直移动距离
   ) => {
     const { onDrag } = this.props;
     if (!onDrag) return;
@@ -497,7 +496,7 @@ export default class GridItem extends React.Component<Props, State> {
 
     const { isBounded, i, w, h, containerWidth } = this.props;
     const positionParams = this.getPositionParams();
-
+    
     // Boundary calculations; keeps items within the grid
     if (isBounded) {
       const { offsetParent } = node;
