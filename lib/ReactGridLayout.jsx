@@ -357,7 +357,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
 
     // Move the element to the dragged location.
     const isUserAction = true;
-    // TODO 这里没看懂，这里有碰撞检测，移动相关元素的逻辑
+    // 碰撞检测，移动相关元素的逻辑
     layout = moveElement(
       layout,
       l,
@@ -375,7 +375,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     this.setState({
       layout: allowOverlap
         ? layout
-        : compact(layout, compactType(this.props), cols), // TODO 这里没看懂，如果不允许重叠，调整layout的元素
+        : compact(layout, compactType(this.props), cols), // 如果不允许重叠，调整layout的元素
       activeDrag: placeholder
     });
   };
