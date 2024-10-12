@@ -4,7 +4,6 @@ dist/*
 !dist/react-grid-layout.min*
 !dist/*.html
 npm-debug.log
-build/
 .idea
 coverage/
 # Ignore built example files
