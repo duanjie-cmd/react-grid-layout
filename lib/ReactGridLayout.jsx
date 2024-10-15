@@ -63,7 +63,9 @@ type State = {
   compactType?: CompactType,
   propsLayout?: Layout,
   isDragOverTop: boolean,
-  isDragOverLeft: boolean
+  isDragOverBottom: boolean,
+  isDragOverLeft: boolean,
+  isDragOverRight: boolean
 };
 
 import type { Props, DefaultProps } from "./ReactGridLayoutPropTypes";
@@ -154,7 +156,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     droppingDOMNode: null,
     children: [],
     isDragOverTop: false,
-    isDragOverLeft: false
+    isDragOverBottom: false,
+    isDragOverLeft: false,
+    isDragOverRight: false,
   };
 
   dragEnterCounter: number = 0;
@@ -940,6 +944,7 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       e
     };
 
+    const { containerWidth,containerHeight } = this.getFinalContainerWH;
     if (droppingPosition.top <= drayOverBoundary) {
       this.setState({
         isDragOverTop: true
@@ -947,6 +952,15 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     } else {
       this.setState({
         isDragOverTop: false
+      });
+    }
+    if (droppingPosition.top >= (containerHeight - drayOverBoundary)) {
+      this.setState({
+        isDragOverBottom: true
+      });
+    } else {
+      this.setState({
+        isDragOverBottom: false
       });
     }
 
@@ -957,6 +971,15 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     } else {
       this.setState({
         isDragOverLeft: false
+      });
+    }
+    if (droppingPosition.left >= (containerWidth - drayOverBoundary)) {
+      this.setState({
+        isDragOverRight: true
+      });
+    } else {
+      this.setState({
+        isDragOverRight: false
       });
     }
 
@@ -1020,7 +1043,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
       activeDrag: null,
       droppingPosition: undefined,
       isDragOverTop: false,
-      isDragOverLeft: false
+      isDragOverBottom: false,
+      isDragOverLeft: false,
+      isDragOverRight: false,
     });
 
     this.onLayoutMaybeChanged(newLayout, oldLayout);
@@ -1118,27 +1143,39 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const { isDragOverTop } = this.state;
     return isDragOverTop ? (<div className="react-grid-layout-top-area"></div>) : null;
   }
+  bottomArea(): null | React.Element<"div"> {
+    const { isDragOverBottom } = this.state;
+    return isDragOverBottom ? (<div className="react-grid-layout-bottom-area"></div>) : null;
+  }
   leftArea(): null | React.Element<"div"> {
     const { isDragOverLeft } = this.state;
     return isDragOverLeft ? (<div className="react-grid-layout-left-area"></div>) : null;
   }
+  rightArea(): null | React.Element<"div"> {
+    const { isDragOverRight } = this.state;
+    return isDragOverRight ? (<div className="react-grid-layout-right-area"></div>) : null;
+  }
 
-  render(): React.Element<"div"> {
-    const { className, style, isDroppable, innerRef, initContainer } = this.props;
-    // console.log("ReactGridLayout render props:", this.props);
-
-    const mergedClassName = clsx(layoutClassName, className);
+  get getFinalContainerWH(): { containerHeight: number, containerWidth: number} {
+    const { initContainer } = this.props;
     // 容器的宽度，最小为初始宽度，且宽度为初始宽度的倍数
     const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0 ) / initContainer.width) * initContainer.width);
-    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0 ) / initContainer.height) * initContainer.height);
+    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0) / initContainer.height) * initContainer.height);
+    return {
+      containerWidth: containerWidth,
+      containerHeight: containerHeight + 1
+    }
+  }
 
+  render(): React.Element<"div"> {
+    const { className, style, isDroppable, innerRef } = this.props;
+    const mergedClassName = clsx(layoutClassName, className);
+    const { containerWidth, containerHeight } = this.getFinalContainerWH;
     const mergedStyle = {
       width: containerWidth,
-      height: containerHeight + 1,
+      height: containerHeight,
       ...style
     };
-
-
     return (
       <div
         ref={innerRef}
@@ -1158,7 +1195,9 @@ export default class ReactGridLayout extends React.Component<Props, State> {
         {/* 内部元素拖拽过程中，拖拽的色块背景色，渲染 activeDrag */ }
         { this.placeholder() }
         { this.topArea() }
+        { this.bottomArea() }
         { this.leftArea() }
+        { this.rightArea() }
       </div>
     );
   }

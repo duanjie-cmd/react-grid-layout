@@ -118,18 +118,34 @@
 }
 
 .react-grid-layout-top-area {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 10px;
   background-color: rgba(27, 177, 219, 0.2);
 }
+.react-grid-layout-bottom-area {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background-color: rgba(27, 177, 219, 0.2);
+}
 .react-grid-layout-left-area {
-  position: fixed;
+  position: absolute;
   top: 0;
   bottom:0;
   left: 0;
+  width: 10px;
+  background-color: rgba(27, 177, 219, 0.2);
+}
+.react-grid-layout-right-area {
+  position: absolute;
+  top: 0;
+  bottom:0;
+  right: 0;
   width: 10px;
   background-color: rgba(27, 177, 219, 0.2);
 }

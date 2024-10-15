@@ -47,7 +47,9 @@ function _toPrimitive(input, hint) { if (typeof input !== "object" || input === 
   compactType?: CompactType,
   propsLayout?: Layout,
   isDragOverTop: boolean,
-  isDragOverLeft: boolean
+  isDragOverBottom: boolean,
+  isDragOverLeft: boolean,
+  isDragOverRight: boolean
 };*/
 /*:: import type { Props, DefaultProps } from "./ReactGridLayoutPropTypes";*/
 // End Types
@@ -79,7 +81,9 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
       droppingDOMNode: null,
       children: [],
       isDragOverTop: false,
-      isDragOverLeft: false
+      isDragOverBottom: false,
+      isDragOverLeft: false,
+      isDragOverRight: false
     });
     _defineProperty(this, "dragEnterCounter", 0);
     /**
@@ -518,6 +522,10 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
         top: layerY / transformScale,
         e
       };
+      const {
+        containerWidth,
+        containerHeight
+      } = this.getFinalContainerWH;
       if (droppingPosition.top <= drayOverBoundary) {
         this.setState({
           isDragOverTop: true
@@ -527,6 +535,15 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
           isDragOverTop: false
         });
       }
+      if (droppingPosition.top >= containerHeight - drayOverBoundary) {
+        this.setState({
+          isDragOverBottom: true
+        });
+      } else {
+        this.setState({
+          isDragOverBottom: false
+        });
+      }
       if (droppingPosition.left <= drayOverBoundary) {
         this.setState({
           isDragOverLeft: true
@@ -534,6 +551,15 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
       } else {
         this.setState({
           isDragOverLeft: false
+        });
+      }
+      if (droppingPosition.left >= containerWidth - drayOverBoundary) {
+        this.setState({
+          isDragOverRight: true
+        });
+      } else {
+        this.setState({
+          isDragOverRight: false
         });
       }
       if (!this.state.droppingDOMNode) {
@@ -591,7 +617,9 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
         activeDrag: null,
         droppingPosition: undefined,
         isDragOverTop: false,
-        isDragOverLeft: false
+        isDragOverBottom: false,
+        isDragOverLeft: false,
+        isDragOverRight: false
       });
       this.onLayoutMaybeChanged(newLayout, oldLayout);
     });
@@ -980,6 +1008,14 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
       className: "react-grid-layout-top-area"
     }) : null;
   }
+  bottomArea() /*: null | React.Element<"div">*/{
+    const {
+      isDragOverBottom
+    } = this.state;
+    return isDragOverBottom ? /*#__PURE__*/React.createElement("div", {
+      className: "react-grid-layout-bottom-area"
+    }) : null;
+  }
   leftArea() /*: null | React.Element<"div">*/{
     const {
       isDragOverLeft
@@ -988,23 +1024,41 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
       className: "react-grid-layout-left-area"
     }) : null;
   }
+  rightArea() /*: null | React.Element<"div">*/{
+    const {
+      isDragOverRight
+    } = this.state;
+    return isDragOverRight ? /*#__PURE__*/React.createElement("div", {
+      className: "react-grid-layout-right-area"
+    }) : null;
+  }
+  get getFinalContainerWH() /*: { containerHeight: number, containerWidth: number}*/{
+    const {
+      initContainer
+    } = this.props;
+    // 容器的宽度，最小为初始宽度，且宽度为初始宽度的倍数
+    const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0) / initContainer.width) * initContainer.width);
+    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0) / initContainer.height) * initContainer.height);
+    return {
+      containerWidth: containerWidth,
+      containerHeight: containerHeight + 1
+    };
+  }
   render() /*: React.Element<"div">*/{
     const {
       className,
       style,
       isDroppable,
-      innerRef,
-      initContainer
+      innerRef
     } = this.props;
-    // console.log("ReactGridLayout render props:", this.props);
-
     const mergedClassName = (0, _clsx.default)(layoutClassName, className);
-    // 容器的宽度，最小为初始宽度，且宽度为初始宽度的倍数
-    const containerWidth = Math.max(initContainer.width, Math.ceil((this.containerWidth() || 0) / initContainer.width) * initContainer.width);
-    const containerHeight = Math.max(initContainer.height, Math.ceil((this.containerHeight() || 0) / initContainer.height) * initContainer.height);
+    const {
+      containerWidth,
+      containerHeight
+    } = this.getFinalContainerWH;
     const mergedStyle = {
       width: containerWidth,
-      height: containerHeight + 1,
+      height: containerHeight,
       ...style
     };
     return /*#__PURE__*/React.createElement("div", {
@@ -1020,7 +1074,7 @@ class ReactGridLayout extends React.Component /*:: <Props, State>*/{
       onDragOver: isDroppable ? this.onDragOver : _utils.noop // 拖拽元素在上方，执行 props 中的 onDropDragOver 函数，添加 droppingDOMNode，计算 droppingPosition，在 layout 中添加数据
       ,
       onDragLeave: isDroppable ? this.onDragLeave : _utils.noop // 拖拽元素离开， 通过 this.dragEnterCounter 判断是否清除 removeDroppingPlaceholder
-    }, React.Children.map(this.props.children, child => this.processGridItem(child)), isDroppable && this.state.droppingDOMNode && this.processGridItem(this.state.droppingDOMNode, true), this.placeholder(), this.topArea(), this.leftArea());
+    }, React.Children.map(this.props.children, child => this.processGridItem(child)), isDroppable && this.state.droppingDOMNode && this.processGridItem(this.state.droppingDOMNode, true), this.placeholder(), this.topArea(), this.bottomArea(), this.leftArea(), this.rightArea());
   }
 }
 exports.default = ReactGridLayout;
