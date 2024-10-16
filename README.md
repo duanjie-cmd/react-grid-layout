@@ -424,12 +424,15 @@ innerRef: {current: null | HTMLDivElement},
 
 // add props
 // Drag and add elements; when reaching the drag boundary distance, display the boundary area.
-drayOverBoundary: number,
+drayOverBoundary: ?number = 10,
 
 // The container's initial width and height, with the actual size of the container being a multiple of the initial dimensions.
-initContainer: {
+initContainer: ?{
   width: number,
   height: number
+} = { 
+  width: window.innerWidth,
+  height: window.innerHeight
 }
 ```
 
