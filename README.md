@@ -421,6 +421,16 @@ onDropDragOver: (e: DragOverEvent) => ?({|w?: number, h?: number|} | false),
 // Note that this type is React.Ref<HTMLDivElement> in TypeScript, Flow has a bug here
 // https://github.com/facebook/flow/issues/8671#issuecomment-862634865
 innerRef: {current: null | HTMLDivElement},
+
+// add props
+// Drag and add elements; when reaching the drag boundary distance, display the boundary area.
+drayOverBoundary: number,
+
+// The container's initial width and height, with the actual size of the container being a multiple of the initial dimensions.
+initContainer: {
+  width: number,
+  height: number
+}
 ```
 
 ### Responsive Grid Layout Props
