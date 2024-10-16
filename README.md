@@ -325,12 +325,18 @@ rowHeight: ?number = 150,
 //  h - height of an element
 droppingItem?: { i: string, w: number, h: number }
 
+// Dropping element after a delay (in ms)
+delay: ?number = 0
+
 //
 // Flags
 //
 isDraggable: ?boolean = true,
 isResizable: ?boolean = true,
 isBounded: ?boolean = false,
+// Calculate component collisions during the drop event,
+// which still takes effect when allowOverlap=true.
+collisionOnDrop: ?boolean = false,
 // Uses CSS3 translate() instead of position top/left.
 // This makes about 6x faster paint performance
 useCSSTransforms: ?boolean = true,
