@@ -488,15 +488,16 @@ export default class ReactGridLayout extends React.Component<Props, State> {
     const { onceMoveX,onceMoveY } = this.getOnceMove();
     // 如果找到最左侧且 x 小于 0 的元素，说明需要向左边扩大空间，向右移动元素，修改滚动条左侧距离
     if (minXItem) {
+      const moveX = Math.ceil(- minXItem.x / onceMoveX) * onceMoveX;
       // 单次拓展一屏，向右移动元素
       newLayout = layout.map(item => {
         return {
           ...item,
-          x: item.x + onceMoveX,
+          x: item.x + moveX,
         };
       })
       // 计算最左侧元素的left值
-      const position = calcGridItemPosition(positionParams, minXItem.x + onceMoveX, minXItem.y, minXItem.w, minXItem.h, null)
+      const position = calcGridItemPosition(positionParams, minXItem.x + moveX, minXItem.y, minXItem.w, minXItem.h, null)
       // 此时由于宽度和元素位置发生变化，需要修改滚动条的位置，滚动到刚好能展示最左侧的元素，计算滚动条左侧的距离
       this.setScroll({
         scrollLeft: position.left - RollingReservationDistance
