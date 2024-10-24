@@ -82,6 +82,7 @@ function _toPrimitive(input, hint) { if (typeof input !== "object" || input === 
   minH: number,
   maxH: number,
   i: string,
+  delay?: number,
 
   resizeHandles?: ResizeHandleAxis[],
   resizeHandle?: ResizeHandle,
@@ -116,6 +117,7 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
       className: ""
     });
     _defineProperty(this, "elementRef", /*#__PURE__*/_react.default.createRef());
+    _defineProperty(this, "delayInfo", {});
     /**
      * onDragStart event handler
      * @param  {Event}  e             event data
@@ -133,9 +135,10 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
       if (!onDragStart) return;
       if (delay) {
         const result = await new Promise(resolve => {
-          this.delayTimer = setTimeout(() => {
+          this.delayInfo.timer = window.setTimeout(() => {
             resolve(true);
           }, delay);
+          this.delayInfo.resolve = resolve;
         });
         if (!result) {
           return;
@@ -192,8 +195,8 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
       } = this.props;
       if (!onDrag) return;
       if (!this.state.dragging) {
-        if (delay > 0) {
-          clearTimeout(this.delayTimer);
+        if (Number(delay) > 0) {
+          this.clearDelayInfo();
           return;
         }
         throw new Error("onDrag called before onDragStart.");
@@ -261,7 +264,8 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
       } = this.props;
       if (!onDragStop) return;
       if (!this.state.dragging) {
-        if (delay > 0) {
+        if (Number(delay) > 0) {
+          this.clearDelayInfo();
           return;
         }
         throw new Error("onDragEnd called before onDragStart.");
@@ -476,6 +480,11 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
       resizeHandles: resizeHandles,
       handle: resizeHandle
     }, child);
+  }
+  clearDelayInfo() {
+    if (!this.delayInfo) return;
+    window.clearTimeout(this.delayInfo?.timer);
+    this.delayInfo?.resolve(false);
   }
   /**
    * Wrapper around resize events to provide more useful data.

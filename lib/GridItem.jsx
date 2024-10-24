@@ -96,6 +96,7 @@ type Props = {
   minH: number,
   maxH: number,
   i: string,
+  delay?: number,
 
   resizeHandles?: ResizeHandleAxis[],
   resizeHandle?: ResizeHandle,
@@ -440,6 +441,17 @@ export default class GridItem extends React.Component<Props, State> {
     );
   }
 
+  delayInfo: {
+    timer: number,
+    resolve: (bool: boolean) => void
+  } = {};
+
+  clearDelayInfo () {
+    if (!this.delayInfo) return;
+    window.clearTimeout(this.delayInfo?.timer);
+    this.delayInfo?.resolve(false);
+  }
+
   /**
    * onDragStart event handler
    * @param  {Event}  e             event data
@@ -451,9 +463,10 @@ export default class GridItem extends React.Component<Props, State> {
 
     if (delay) {
       const result = await new Promise(resolve => {
-        this.delayTimer = setTimeout(() => {
+        this.delayInfo.timer = window.setTimeout(() => {
           resolve(true)
         }, delay);
+        this.delayInfo.resolve = resolve
       })
       if (!result) {
         return
@@ -503,8 +516,8 @@ export default class GridItem extends React.Component<Props, State> {
     if (!onDrag) return;
 
     if (!this.state.dragging) {
-      if (delay > 0) {
-        clearTimeout(this.delayTimer);
+      if (Number(delay) > 0) {
+        this.clearDelayInfo();
         return;
       }
       throw new Error("onDrag called before onDragStart.");
@@ -554,7 +567,8 @@ export default class GridItem extends React.Component<Props, State> {
     if (!onDragStop) return;
 
     if (!this.state.dragging) {
-      if (delay > 0) {
+      if (Number(delay) > 0) {
+        this.clearDelayInfo();
         return;
       }
       throw new Error("onDragEnd called before onDragStart.");
