@@ -195,7 +195,7 @@ class GridItem extends _react.default.Component /*:: <Props, State>*/{
       } = this.props;
       if (!onDrag) return;
       if (!this.state.dragging) {
-        if (Number(delay) > 0) {
+        if ((deltaX > 2 || deltaY > 2) && Number(delay) > 0) {
           this.clearDelayInfo();
           return;
         }
