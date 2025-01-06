@@ -325,12 +325,18 @@ rowHeight: ?number = 150,
 //  h - height of an element
 droppingItem?: { i: string, w: number, h: number }
 
+// Dropping element after a delay (in ms)
+delay: ?number = 0
+
 //
 // Flags
 //
 isDraggable: ?boolean = true,
 isResizable: ?boolean = true,
 isBounded: ?boolean = false,
+// Calculate component collisions during the drop event,
+// which still takes effect when allowOverlap=true.
+collisionOnDrop: ?boolean = false,
 // Uses CSS3 translate() instead of position top/left.
 // This makes about 6x faster paint performance
 useCSSTransforms: ?boolean = true,
@@ -421,6 +427,19 @@ onDropDragOver: (e: DragOverEvent) => ?({|w?: number, h?: number|} | false),
 // Note that this type is React.Ref<HTMLDivElement> in TypeScript, Flow has a bug here
 // https://github.com/facebook/flow/issues/8671#issuecomment-862634865
 innerRef: {current: null | HTMLDivElement},
+
+// add props
+// Drag and add elements; when reaching the drag boundary distance, display the boundary area.
+drayOverBoundary: ?number = 10,
+
+// The container's initial width and height, with the actual size of the container being a multiple of the initial dimensions.
+initContainer: ?{
+  width: number,
+  height: number
+} = { 
+  width: window.innerWidth,
+  height: window.innerHeight
+}
 ```
 
 ### Responsive Grid Layout Props

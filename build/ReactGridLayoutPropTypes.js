@@ -1,32 +1,35 @@
-// @flow
-import PropTypes from "prop-types";
-import React from "react";
-import type {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.resizeHandleType = exports.resizeHandleAxesType = exports.default = void 0;
+var _propTypes = _interopRequireDefault(require("prop-types"));
+var _react = _interopRequireDefault(require("react"));
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+/*:: import type {
   Ref,
   ChildrenArray as ReactChildrenArray,
   Element as ReactElement
-} from "react";
-import type {
+} from "react";*/
+/*:: import type {
   DragOverEvent,
   EventCallback,
   CompactType,
   Layout,
   LayoutItem,
   ResizeHandleAxis
-} from "./utils";
-
-// util
-export type ReactRef<T: HTMLElement> = {|
+} from "./utils";*/
+/*:: export type ReactRef<T: HTMLElement> = {|
   +current: T | null
-|};
-
-export type ResizeHandle =
+|};*/
+// util
+/*:: export type ResizeHandle =
   | ReactElement<any>
   | ((
       resizeHandleAxis: ResizeHandleAxis,
       ref: ReactRef<HTMLElement>
-    ) => ReactElement<any>);
-
+    ) => ReactElement<any>);*/
 // Defines which resize handles should be rendered (default: 'se')
 // Allows for any combination of:
 // 's' - South handle (bottom-center)
@@ -37,15 +40,10 @@ export type ResizeHandle =
 // 'nw' - Northwest handle (top-left)
 // 'se' - Southeast handle (bottom-right)
 // 'ne' - Northeast handle (top-right)
-export const resizeHandleAxesType: ReactPropsChainableTypeChecker =
-  PropTypes.arrayOf(
-    PropTypes.oneOf(["s", "w", "e", "n", "sw", "nw", "se", "ne"])
-  );
+const resizeHandleAxesType /*: ReactPropsChainableTypeChecker*/ = exports.resizeHandleAxesType = _propTypes.default.arrayOf(_propTypes.default.oneOf(["s", "w", "e", "n", "sw", "nw", "se", "ne"]));
 // Custom component for resize handles
-export const resizeHandleType: ReactPropsChainableTypeChecker =
-  PropTypes.oneOfType([PropTypes.node, PropTypes.func]);
-
-export type Props = {|
+const resizeHandleType /*: ReactPropsChainableTypeChecker*/ = exports.resizeHandleType = _propTypes.default.oneOfType([_propTypes.default.node, _propTypes.default.func]);
+/*:: export type Props = {|
   className: string,
   drayOverBoundary: number,
   initContainer: {
@@ -91,158 +89,129 @@ export type Props = {|
   onDrop: (layout: Layout, item: ?LayoutItem, e: Event) => void,
   children: ReactChildrenArray<ReactElement<any>>,
   innerRef?: Ref<"div">
-|};
-
-export type DefaultProps = $Diff<
+|};*/
+/*:: export type DefaultProps = $Diff<
   Props,
   {
     children: ReactChildrenArray<ReactElement<any>>,
     width: number
   }
->;
-
-export default {
+>;*/
+var _default = exports.default = {
   //
   // Basic props
   //
-  className: PropTypes.string,
-  style: PropTypes.object,
-
+  className: _propTypes.default.string,
+  style: _propTypes.default.object,
   // This can be set explicitly. If it is not set, it will automatically
   // be set to the container width. Note that resizes will *not* cause this to adjust.
   // If you need that behavior, use WidthProvider.
-  width: PropTypes.number,
-
+  width: _propTypes.default.number,
   // If true, the container height swells and contracts to fit contents
-  autoSize: PropTypes.bool,
+  autoSize: _propTypes.default.bool,
   // # of cols.
-  cols: PropTypes.number,
-
+  cols: _propTypes.default.number,
   // A selector that will not be draggable.
-  draggableCancel: PropTypes.string,
+  draggableCancel: _propTypes.default.string,
   // A selector for the draggable handler
-  draggableHandle: PropTypes.string,
-
+  draggableHandle: _propTypes.default.string,
   // Deprecated
-  verticalCompact: function (props: Props) {
-    if (
-      props.verticalCompact === false &&
-      process.env.NODE_ENV !== "production"
-    ) {
+  verticalCompact: function (props /*: Props*/) {
+    if (props.verticalCompact === false && process.env.NODE_ENV !== "production") {
       console.warn(
-        // eslint-disable-line no-console
-        "`verticalCompact` on <ReactGridLayout> is deprecated and will be removed soon. " +
-          'Use `compactType`: "horizontal" | "vertical" | null.'
-      );
+      // eslint-disable-line no-console
+      "`verticalCompact` on <ReactGridLayout> is deprecated and will be removed soon. " + 'Use `compactType`: "horizontal" | "vertical" | null.');
     }
   },
   // Choose vertical or hotizontal compaction
-  compactType: (PropTypes.oneOf([
-    "vertical",
-    "horizontal"
-  ]): ReactPropsChainableTypeChecker),
-
+  compactType: (_propTypes.default.oneOf(["vertical", "horizontal"]) /*: ReactPropsChainableTypeChecker*/),
   // layout is an array of object with the format:
   // {x: Number, y: Number, w: Number, h: Number, i: String}
-  layout: function (props: Props) {
+  layout: function (props /*: Props*/) {
     var layout = props.layout;
     // I hope you're setting the data-grid property on the grid items
     if (layout === undefined) return;
     require("./utils").validateLayout(layout, "layout");
   },
-
   //
   // Grid Dimensions
   //
 
   // Margin between items [x, y] in px
-  margin: (PropTypes.arrayOf(PropTypes.number): ReactPropsChainableTypeChecker),
+  margin: (_propTypes.default.arrayOf(_propTypes.default.number) /*: ReactPropsChainableTypeChecker*/),
   // Padding inside the container [x, y] in px
-  containerPadding: (PropTypes.arrayOf(
-    PropTypes.number
-  ): ReactPropsChainableTypeChecker),
+  containerPadding: (_propTypes.default.arrayOf(_propTypes.default.number) /*: ReactPropsChainableTypeChecker*/),
   // Rows have a static height, but you can change this based on breakpoints if you like
-  rowHeight: PropTypes.number,
+  rowHeight: _propTypes.default.number,
   // Default Infinity, but you can specify a max here if you like.
   // Note that this isn't fully fleshed out and won't error if you specify a layout that
   // extends beyond the row capacity. It will, however, not allow users to drag/resize
   // an item past the barrier. They can push items beyond the barrier, though.
   // Intentionally not documented for this reason.
-  maxRows: PropTypes.number,
-
+  maxRows: _propTypes.default.number,
   //
   // Flags
   //
-  isBounded: PropTypes.bool,
-  isDraggable: PropTypes.bool,
-  isResizable: PropTypes.bool,
+  isBounded: _propTypes.default.bool,
+  isDraggable: _propTypes.default.bool,
+  isResizable: _propTypes.default.bool,
   // If true, grid can be placed one over the other.
-  allowOverlap: PropTypes.bool,
+  allowOverlap: _propTypes.default.bool,
   // If true, grid items won't change position when being dragged over.
-  preventCollision: PropTypes.bool,
+  preventCollision: _propTypes.default.bool,
   // Use CSS transforms instead of top/left
-  useCSSTransforms: PropTypes.bool,
+  useCSSTransforms: _propTypes.default.bool,
   // parent layout transform scale
-  transformScale: PropTypes.number,
+  transformScale: _propTypes.default.number,
   // If true, an external element can trigger onDrop callback with a specific grid position as a parameter
-  isDroppable: PropTypes.bool,
-
+  isDroppable: _propTypes.default.bool,
   // Resize handle options
   resizeHandles: resizeHandleAxesType,
   resizeHandle: resizeHandleType,
-
   //
   // Callbacks
   //
 
   // Callback so you can save the layout. Calls after each drag & resize stops.
-  onLayoutChange: PropTypes.func,
-
+  onLayoutChange: _propTypes.default.func,
   // Calls when drag starts. Callback is of the signature (layout, oldItem, newItem, placeholder, e, ?node).
   // All callbacks below have the same signature. 'start' and 'stop' callbacks omit the 'placeholder'.
-  onDragStart: PropTypes.func,
+  onDragStart: _propTypes.default.func,
   // Calls on each drag movement.
-  onDrag: PropTypes.func,
+  onDrag: _propTypes.default.func,
   // Calls when drag is complete.
-  onDragStop: PropTypes.func,
+  onDragStop: _propTypes.default.func,
   //Calls when resize starts.
-  onResizeStart: PropTypes.func,
+  onResizeStart: _propTypes.default.func,
   // Calls when resize movement happens.
-  onResize: PropTypes.func,
+  onResize: _propTypes.default.func,
   // Calls when resize is complete.
-  onResizeStop: PropTypes.func,
+  onResizeStop: _propTypes.default.func,
   // Calls when some element is dropped.
-  onDrop: PropTypes.func,
-
+  onDrop: _propTypes.default.func,
   //
   // Other validations
   //
 
-  droppingItem: (PropTypes.shape({
-    i: PropTypes.string.isRequired,
-    w: PropTypes.number.isRequired,
-    h: PropTypes.number.isRequired
-  }): ReactPropsChainableTypeChecker),
-
+  droppingItem: (_propTypes.default.shape({
+    i: _propTypes.default.string.isRequired,
+    w: _propTypes.default.number.isRequired,
+    h: _propTypes.default.number.isRequired
+  }) /*: ReactPropsChainableTypeChecker*/),
   // Children must not have duplicate keys.
-  children: function (props: Props, propName: string) {
+  children: function (props /*: Props*/, propName /*: string*/) {
     const children = props[propName];
 
     // Check children keys for duplicates. Throw if found.
     const keys = {};
-    React.Children.forEach(children, function (child) {
+    _react.default.Children.forEach(children, function (child) {
       if (child?.key == null) return;
       if (keys[child.key]) {
-        throw new Error(
-          'Duplicate child key "' +
-            child.key +
-            '" found! This will cause problems in ReactGridLayout.'
-        );
+        throw new Error('Duplicate child key "' + child.key + '" found! This will cause problems in ReactGridLayout.');
       }
       keys[child.key] = true;
     });
   },
-
   // Optional ref for getting a reference for the wrapping div.
-  innerRef: PropTypes.any
+  innerRef: _propTypes.default.any
 };
